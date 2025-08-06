@@ -1,0 +1,15 @@
+[package]
+name = "snake-rs"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jose Luis Leon <joseluis5000l@gmail.com>"]
+license = "MIT"
+
+[dependencies]
+bevy = "0.16.1"
+
+[lints.clippy]
+all = "warn"
+style = "warn"
+needless_pass_by_value = "warn"
+semicolon_if_nothing_returned = "warn"
