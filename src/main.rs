@@ -1,9 +1,18 @@
-use bevy::app::{App, Update};
+mod components;
+mod helpers;
+mod plugins;
+
+use bevy::{DefaultPlugins, app::App};
+
+use crate::plugins::{
+  grid_plugin::GridPlugin, setup_plugin::SetupPlugin, snake_plugin::SnakePlugin,
+};
 
 fn main() {
-  App::new().add_systems(Update, greet).run();
-}
-
-fn greet() {
-  println!("Hello, Bevy!");
+  App::new()
+    .add_plugins(DefaultPlugins)
+    .add_plugins(SetupPlugin)
+    .add_plugins(GridPlugin)
+    .add_plugins(SnakePlugin)
+    .run();
 }
