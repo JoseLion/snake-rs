@@ -32,19 +32,22 @@ impl Grid {
   }
 
   pub fn warp(&self, cell: I8Vec2) -> I8Vec2 {
-    let limit_x = Self::COLS as i8 / 2;
-    let limit_y = Self::ROWS as i8 / 2;
-    let x = match cell.x {
-      x if x < -limit_x => limit_x - 1,
-      x if x >= limit_x => -limit_x,
-      _ => cell.x,
-    };
-    let y = match cell.y {
-      y if y > limit_y => -limit_y + 1,
-      y if y <= -limit_y => limit_y,
-      _ => cell.y,
-    };
+    let left_bound = Self::COLS as i8 / -2;
+    let right_bound = (Self::COLS as i8 / 2) - 1;
+    let top_bound = Self::ROWS as i8 / 2;
+    let bottom_bound = (Self::ROWS as i8 / -2) + 1;
 
-    I8Vec2 { x, y }
+    I8Vec2 {
+      x: match cell.x {
+        x if x < left_bound => right_bound,
+        x if x > right_bound => left_bound,
+        _ => cell.x,
+      },
+      y: match cell.y {
+        y if y > top_bound => bottom_bound,
+        y if y < bottom_bound => top_bound,
+        _ => cell.y,
+      },
+    }
   }
 }

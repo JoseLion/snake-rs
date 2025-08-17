@@ -58,23 +58,17 @@ fn move_segments(
 ) {
   let grid = grid_query.into_inner();
   let snake = snake_query.into_inner();
-  let positions = segment_query
-    .iter_mut()
-    .map(|(segment, _)| segment.position)
-    .collect::<Vec<_>>();
 
-  segment_query
-    .iter_mut()
-    .enumerate()
-    .for_each(|(i, (mut segment, mut segment_tx))| {
-      if i == 0 {
-        segment.position = snake.position;
-        segment_tx.translation = grid.translation_at(snake.position);
-      } else {
-        segment.position = positions[i - 1];
-        segment_tx.translation = grid.translation_at(segment.position);
-      }
-    });
+  segment_query.iter_mut().fold(
+    snake.position,
+    |next_position, (mut segment, mut segment_tx)| {
+      let current_position = segment.position;
+      segment.position = next_position;
+      segment_tx.translation = grid.translation_at(segment.position);
+
+      current_position
+    },
+  );
 }
 
 fn update_snake(
