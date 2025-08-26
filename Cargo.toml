@@ -2,11 +2,13 @@
 name = "snake-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89.0"
 authors = ["Jose Luis Leon <joseluis5000l@gmail.com>"]
 license = "MIT"
 
 [dependencies]
 bevy = "0.16.1"
+tinyrand = "0.5.0"
 
 [features]
 default = ["fast"]

@@ -9,7 +9,7 @@ pub struct Snake {
 
 impl Default for Snake {
   fn default() -> Self {
-    Self {
+    Snake {
       direction: I8Vec2::Y,
       position: I8Vec2::ZERO,
     }
