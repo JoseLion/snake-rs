@@ -94,7 +94,7 @@ fn spawn_bonus(
   mut bonus: ResMut<Bonus>,
   mut commands: Commands,
 ) -> Result {
-  if !bonus.active && bonus.progress >= bonus.threshold {
+  if bonus.is_ready() {
     let assets = assets_res.into_inner();
     let (grid_id, grid) = grid_query.into_inner();
     let snake = snake_query.into_inner();

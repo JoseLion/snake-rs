@@ -23,6 +23,10 @@ impl Default for Bonus {
 }
 
 impl Bonus {
+  pub fn is_ready(&self) -> bool {
+    !self.active && self.progress >= self.threshold
+  }
+
   pub fn activate(&mut self) {
     self.active = true;
     self.progress = 0;
