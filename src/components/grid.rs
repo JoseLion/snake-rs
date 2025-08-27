@@ -85,8 +85,8 @@ impl Grid {
       let row = rand.next_lim(Self::ROWS as u32);
       let col = rand.next_lim(Self::COLS as u32);
       let next = I8Vec2::new(
-        row as i8 - (Self::ROWS as i8 / 2),
         col as i8 - (Self::COLS as i8 / 2),
+        row as i8 - (Self::ROWS as i8 / 2),
       );
 
       if self.bounds.contains(&next) && !excludes.contains(&next) {
