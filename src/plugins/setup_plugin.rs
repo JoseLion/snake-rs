@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use bevy::{
   app::{App, Plugin, Startup},
   asset::AssetServer,
@@ -9,25 +11,42 @@ use bevy::{
     schedule::IntoScheduleConfigs,
     system::{Commands, Query, Res},
   },
-  math::Vec2,
+  math::{I8Vec2, Vec2},
+  platform::collections::HashSet,
   sprite::{Anchor, Sprite},
   transform::components::Transform,
   window::{PrimaryWindow, Window},
 };
 
 use crate::{
-  components::{grid::Grid, segment::Segment, snake::Snake},
+  components::{
+    food::{FoodBundle, FoodVariant},
+    grid::Grid,
+    segment::{Segment, SegmentBundle},
+    snake::Snake,
+  },
   helpers::theme::Theme,
+  resources::{bonus::Bonus, level_up::LevelUp, score::Score},
 };
 
 pub struct SetupPlugin;
 
 impl Plugin for SetupPlugin {
   fn build(&self, app: &mut App) {
-    app.add_systems(
-      Startup,
-      (setup_camera, setup_grid, (setup_snake, setup_segments)).chain(),
-    );
+    app
+      .init_resource::<Score>()
+      .init_resource::<LevelUp>()
+      .init_resource::<Bonus>()
+      .add_systems(
+        Startup,
+        (
+          setup_camera,
+          setup_grid,
+          (setup_snake, setup_segments),
+          setup_food,
+        )
+          .chain(),
+      );
   }
 }
 
@@ -64,7 +83,7 @@ fn setup_snake(
       image: assets.into_inner().load("snake/segment.png"),
       ..Sprite::default()
     },
-    Transform::from_xyz(0.0, 0.0, 0.0),
+    Transform::default(),
   ));
 
   Ok(())
@@ -76,22 +95,40 @@ fn setup_segments(
   mut commands: Commands,
 ) -> Result {
   let assets = assets_res.into_inner();
-  let (entity, grid) = grid_query.single()?;
+  let (grid_id, grid) = grid_query.single()?;
 
-  commands.entity(entity).with_children(|parent| {
+  commands.entity(grid_id).with_children(|parent| {
     (1..=3).for_each(|i| {
-      parent.spawn((
-        Segment::new(0, -i),
-        Sprite {
-          anchor: Anchor::TopLeft,
-          custom_size: Some(Vec2::splat(grid.cell_size)),
-          image: assets.load("snake/segment.png"),
-          ..Sprite::default()
-        },
-        Transform::from_xyz(0.0, -grid.cell_size * i as f32, 0.0),
-      ));
+      let position = I8Vec2::new(0, -i);
+
+      parent.spawn(SegmentBundle::from(grid, &position, assets));
     });
   });
+
+  Ok(())
+}
+
+fn setup_food(
+  grid_query: Query<&Grid>,
+  snake_query: Query<&Snake>,
+  segment_query: Query<&Segment>,
+  assets_res: Res<AssetServer>,
+  mut commands: Commands,
+) -> Result {
+  let assets = assets_res.into_inner();
+  let grid = grid_query.single()?;
+  let snake = snake_query.single()?;
+  let excludes = once(snake.position)
+    .chain(segment_query.iter().map(|s| s.position))
+    .collect::<HashSet<_>>();
+  let position = grid.random_position(&excludes)?;
+
+  commands.spawn(FoodBundle::from(
+    FoodVariant::Normal,
+    position,
+    grid,
+    assets,
+  ));
 
   Ok(())
 }

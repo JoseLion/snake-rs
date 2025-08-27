@@ -1,8 +1,11 @@
 use bevy::{
   app::{App, FixedUpdate, Plugin, Update},
+  asset::AssetServer,
   ecs::{
+    entity::Entity,
+    event::EventReader,
     query::{Changed, Without},
-    system::{Query, Res, Single},
+    system::{Commands, Query, Res, Single},
   },
   input::{ButtonInput, keyboard::KeyCode},
   math::{I8Vec2, Vec2},
@@ -11,14 +14,22 @@ use bevy::{
   transform::components::Transform,
 };
 
-use crate::components::{grid::Grid, segment::Segment, snake::Snake};
+use crate::{
+  components::{
+    food::FoodVariant,
+    grid::Grid,
+    segment::{Segment, SegmentBundle},
+    snake::Snake,
+  },
+  events::game_events::EatFoodEvent,
+};
 
 pub struct SnakePlugin;
 
 impl Plugin for SnakePlugin {
   fn build(&self, app: &mut App) {
     app
-      .add_systems(Update, (resize_snake, update_snake))
+      .add_systems(Update, (resize_snake, update_snake, grow_on_eat))
       .add_systems(FixedUpdate, (move_snake, move_segments))
       .insert_resource(Time::<Fixed>::from_seconds(0.25));
   }
@@ -33,13 +44,13 @@ fn resize_snake(
   let (snake, mut snake_sprite, mut snake_tx) = snake_query.into_inner();
 
   snake_sprite.custom_size = Some(Vec2::splat(grid.cell_size));
-  snake_tx.translation = grid.translation_at(snake.position);
+  snake_tx.translation = grid.translation_at(&snake.position);
 
   segment_query
     .iter_mut()
     .for_each(|(segment, mut segment_sprite, mut segment_tx)| {
       segment_sprite.custom_size = Some(Vec2::splat(grid.cell_size));
-      segment_tx.translation = grid.translation_at(segment.position);
+      segment_tx.translation = grid.translation_at(&segment.position);
     });
 }
 
@@ -48,7 +59,7 @@ fn move_snake(grid_query: Single<&Grid>, snake_query: Single<(&mut Snake, &mut T
   let (mut snake, mut snake_tx) = snake_query.into_inner();
 
   snake.position = grid.warp(snake.position + snake.direction);
-  snake_tx.translation = grid.translation_at(snake.position);
+  snake_tx.translation = grid.translation_at(&snake.position);
 }
 
 fn move_segments(
@@ -64,7 +75,7 @@ fn move_segments(
     |next_position, (mut segment, mut segment_tx)| {
       let current_position = segment.position;
       segment.position = next_position;
-      segment_tx.translation = grid.translation_at(segment.position);
+      segment_tx.translation = grid.translation_at(&segment.position);
 
       current_position
     },
@@ -97,5 +108,28 @@ fn update_snake(
           snake.direction = next_direction;
         }
       });
+  }
+}
+
+fn grow_on_eat(
+  grid_query: Single<(Entity, &Grid)>,
+  segment_query: Query<&Segment>,
+  assets_res: Res<AssetServer>,
+  mut event_reader: EventReader<EatFoodEvent>,
+  mut commands: Commands,
+) {
+  if !event_reader.is_empty() {
+    let (grid_id, grid) = grid_query.into_inner();
+    let assets = assets_res.into_inner();
+
+    event_reader.read().for_each(|eat_event| {
+      let should_grow = eat_event.variant == FoodVariant::Normal;
+
+      if should_grow && let Some(last) = segment_query.iter().last() {
+        commands
+          .entity(grid_id)
+          .with_child(SegmentBundle::from(grid, &last.position, assets));
+      }
+    });
   }
 }
