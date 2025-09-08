@@ -2,7 +2,7 @@ use bevy::{
   asset::AssetServer,
   ecs::{bundle::Bundle, component::Component},
   math::{I8Vec2, Vec2},
-  sprite::{Anchor, Sprite},
+  sprite::Sprite,
   transform::components::Transform,
 };
 
@@ -55,7 +55,6 @@ impl FoodBundle {
     FoodBundle {
       food,
       sprite: Sprite {
-        anchor: Anchor::TopLeft,
         custom_size: Some(Vec2::splat(grid.cell_size)),
         image,
         ..Sprite::default()
