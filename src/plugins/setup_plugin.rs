@@ -114,7 +114,7 @@ fn setup_segments(
       let segment = Segment {
         direction: I8Vec2::Y,
         kind: match i {
-          3 => SegmentKind::Tail,
+          4 => SegmentKind::Tail,
           _ => SegmentKind::Body,
         },
         position: I8Vec2::new(0, -i),

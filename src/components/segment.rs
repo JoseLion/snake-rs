@@ -28,19 +28,25 @@ pub struct Segment {
 }
 
 impl Segment {
+  const BODY: usize = 0;
+  const CORNER: usize = 1;
+  const TAIL: usize = 2;
+  const GROWN_BODY: usize = 3;
+  const GROWN_CORNER: usize = 4;
+
   pub fn atlas_index(&self) -> usize {
     if self.grown {
       return match self.kind {
-        SegmentKind::Body => 3,
-        SegmentKind::Corner => 4,
-        SegmentKind::Tail => 2,
+        SegmentKind::Body => Self::GROWN_BODY,
+        SegmentKind::Corner => Self::GROWN_CORNER,
+        SegmentKind::Tail => Self::TAIL,
       };
     }
 
     match self.kind {
-      SegmentKind::Body => 0,
-      SegmentKind::Corner => 1,
-      SegmentKind::Tail => 2,
+      SegmentKind::Body => Self::BODY,
+      SegmentKind::Corner => Self::CORNER,
+      SegmentKind::Tail => Self::TAIL,
     }
   }
 

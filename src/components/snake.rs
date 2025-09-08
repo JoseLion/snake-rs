@@ -23,6 +23,9 @@ impl Default for Snake {
 }
 
 impl Snake {
+  pub const IDLE: usize = 0;
+  pub const OPEN: usize = 1;
+
   pub fn rotation(&self) -> Quat {
     let angle = match self.direction {
       I8Vec2::X => 0.0,

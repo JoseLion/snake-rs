@@ -196,15 +196,15 @@ fn open_mouth(
     .any(|food| next_position == food.position || snake.position == food.position);
 
   if let Some(atlas) = snake_sprite.texture_atlas.as_mut() {
-    if atlas.index == 1 {
+    if atlas.index == Snake::OPEN {
       let timer = time_res.into_inner();
       mouth_timer.value.tick(timer.delta());
     }
 
     if should_open {
-      atlas.index = 1;
+      atlas.index = Snake::OPEN;
     } else if mouth_timer.value.finished() {
-      atlas.index = 0;
+      atlas.index = Snake::IDLE;
       mouth_timer.value.reset();
     }
   }
