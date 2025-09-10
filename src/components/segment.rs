@@ -91,6 +91,7 @@ impl SegmentBundle {
     grid: &Grid,
     assets: &AssetServer,
     layout_asset: &mut Assets<TextureAtlasLayout>,
+    prev_direction: I8Vec2,
   ) -> Self {
     let image = assets.load("snake/body.png");
     let tile_size = UVec2::splat(32);
@@ -98,7 +99,7 @@ impl SegmentBundle {
     let texture_layout = TextureAtlasLayout::from_grid(tile_size, 5, 1, padding, None);
     let layout = layout_asset.add(texture_layout);
     let translation = grid.translation_at(&segment.position);
-    let rotation = segment.rotation(segment.direction);
+    let rotation = segment.rotation(prev_direction);
     let index = segment.atlas_index();
 
     SegmentBundle {

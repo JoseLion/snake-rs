@@ -37,4 +37,8 @@ impl Snake {
 
     Quat::from_rotation_z(angle as f32)
   }
+
+  pub fn flip_x(&self) -> bool {
+    self.direction == I8Vec2::NEG_X
+  }
 }

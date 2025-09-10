@@ -70,7 +70,7 @@ fn move_snake(
   snake.position = grid.warp(snake.position + snake.direction);
   snake_tx.translation = grid.translation_at(&snake.position);
   snake_tx.rotation = snake.rotation();
-  snake_sprite.flip_x = snake.direction == I8Vec2::NEG_X;
+  snake_sprite.flip_x = snake.flip_x();
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -81,7 +81,7 @@ fn move_segments(
   mut segment_query: Query<(&mut Segment, &mut Transform, &mut Sprite)>,
 ) {
   let grid = grid_query.into_inner();
-  let last_idx = segment_query.iter().len() - 1;
+  let segment_len = segment_query.iter().len();
   let head_segment = Segment {
     direction: snake.direction,
     kind: SegmentKind::Body,
@@ -100,7 +100,7 @@ fn move_segments(
       segment.direction = acc.direction;
       segment.grown = acc.grown;
       segment.kind = match i {
-        idx if idx == last_idx => SegmentKind::Tail,
+        idx if idx == segment_len - 1 => SegmentKind::Tail,
         _ if segment.direction != prev.direction => SegmentKind::Corner,
         _ => acc.kind,
       };
@@ -175,6 +175,7 @@ fn grow_on_eat(
           grid,
           assets,
           &mut layout_asset,
+          last.direction,
         ));
       }
     });

@@ -121,7 +121,13 @@ fn setup_segments(
         grown: false,
       };
 
-      parent.spawn(SegmentBundle::new(segment, grid, assets, &mut layout_asset));
+      parent.spawn(SegmentBundle::new(
+        segment,
+        grid,
+        assets,
+        &mut layout_asset,
+        I8Vec2::Y,
+      ));
     });
   });
 
