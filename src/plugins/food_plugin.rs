@@ -5,9 +5,8 @@ use bevy::{
   asset::AssetServer,
   ecs::{
     entity::Entity,
-    event::EventReader,
+    observer::Trigger,
     query::Changed,
-    schedule::IntoScheduleConfigs,
     system::{Commands, Query, Res, ResMut, Single},
   },
   math::Vec2,
@@ -32,10 +31,10 @@ pub struct FoodPlugin;
 
 impl Plugin for FoodPlugin {
   fn build(&self, app: &mut App) {
-    app.add_systems(
-      Update,
-      (resize, (respawn, spawn_bonus).chain(), exhaust_bonus),
-    );
+    app
+      .add_systems(Update, (resize, exhaust_bonus))
+      .add_observer(on_respawn)
+      .add_observer(on_spawn_bonus);
   }
 }
 
@@ -53,46 +52,46 @@ fn resize(
     });
 }
 
-fn respawn(
+#[allow(clippy::needless_pass_by_value)]
+fn on_respawn(
+  trigger: Trigger<EatFoodEvent>,
   grid_query: Single<&Grid>,
   snake_query: Single<&Snake>,
   segment_query: Query<&Segment>,
-  mut event_reader: EventReader<EatFoodEvent>,
   mut food_query: Query<(&mut Food, &mut Transform)>,
   mut bonus: ResMut<Bonus>,
   mut commands: Commands,
 ) {
   let grid = grid_query.into_inner();
   let snake = snake_query.into_inner();
+  let food_positions = food_query
+    .iter()
+    .map(|(f, _)| f.position)
+    .collect::<HashSet<_>>();
 
-  event_reader.read().for_each(|eat_event| {
-    let food_positions = food_query
-      .iter()
-      .map(|(f, _)| f.position)
-      .collect::<HashSet<_>>();
+  if let Ok((mut food, mut food_tx)) = food_query.get_mut(trigger.target()) {
+    match food.variant {
+      FoodVariant::Normal => {
+        let excludes = once(snake.position)
+          .chain(segment_query.iter().map(|s| s.position))
+          .chain(food_positions)
+          .collect::<HashSet<_>>();
+        let next_position = grid.random_position(&excludes);
 
-    if let Ok((mut food, mut food_tx)) = food_query.get_mut(eat_event.id) {
-      match food.variant {
-        FoodVariant::Normal => {
-          let excludes = once(snake.position)
-            .chain(segment_query.iter().map(|s| s.position))
-            .chain(food_positions)
-            .collect::<HashSet<_>>();
-          let next_position = grid.random_position(&excludes);
-
-          food.position = next_position;
-          food_tx.translation = grid.translation_at(&food.position);
-        }
-        FoodVariant::Special => {
-          bonus.deactivate();
-          commands.entity(eat_event.id).despawn();
-        }
+        food.position = next_position;
+        food_tx.translation = grid.translation_at(&food.position);
+      }
+      FoodVariant::Special => {
+        bonus.deactivate();
+        commands.entity(trigger.target()).despawn();
       }
     }
-  });
+  }
 }
 
-fn spawn_bonus(
+#[allow(clippy::too_many_arguments)]
+fn on_spawn_bonus(
+  _trigger: Trigger<EatFoodEvent>,
   grid_query: Single<(Entity, &Grid)>,
   snake_query: Single<&Snake>,
   segment_query: Query<&Segment>,

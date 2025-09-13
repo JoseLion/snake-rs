@@ -118,7 +118,7 @@ fn setup_segments(
           _ => SegmentKind::Body,
         },
         position: I8Vec2::new(0, -i),
-        grown: false,
+        has_food: false,
       };
 
       parent.spawn(SegmentBundle::new(

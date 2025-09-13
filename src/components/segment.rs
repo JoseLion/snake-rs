@@ -22,9 +22,9 @@ pub enum SegmentKind {
 #[require(Sprite)]
 pub struct Segment {
   pub direction: I8Vec2,
+  pub has_food: bool,
   pub kind: SegmentKind,
   pub position: I8Vec2,
-  pub grown: bool,
 }
 
 impl Segment {
@@ -35,7 +35,7 @@ impl Segment {
   const GROWN_CORNER: usize = 4;
 
   pub fn atlas_index(&self) -> usize {
-    if self.grown {
+    if self.has_food {
       return match self.kind {
         SegmentKind::Body => Self::GROWN_BODY,
         SegmentKind::Corner => Self::GROWN_CORNER,

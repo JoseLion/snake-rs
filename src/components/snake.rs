@@ -10,6 +10,7 @@ use bevy::{
 #[require(Sprite)]
 pub struct Snake {
   pub direction: I8Vec2,
+  pub has_food: bool,
   pub position: I8Vec2,
 }
 
@@ -17,6 +18,7 @@ impl Default for Snake {
   fn default() -> Self {
     Snake {
       direction: I8Vec2::Y,
+      has_food: false,
       position: I8Vec2::ZERO,
     }
   }
