@@ -1,10 +1,12 @@
-use std::f64::consts::FRAC_PI_2;
+use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
   ecs::component::Component,
   math::{I8Vec2, Quat},
   sprite::Sprite,
 };
+
+use crate::helpers::transform::{Flip, SpriteTx};
 
 #[derive(Component)]
 #[require(Sprite)]
@@ -28,7 +30,7 @@ impl Snake {
   pub const IDLE: usize = 0;
   pub const OPEN: usize = 1;
 
-  pub fn rotation(&self) -> Quat {
+  pub fn sprite_tx(&self) -> SpriteTx {
     let angle = match self.direction {
       I8Vec2::X => 0.0,
       I8Vec2::Y => FRAC_PI_2,
@@ -37,10 +39,12 @@ impl Snake {
       _ => 0.0,
     };
 
-    Quat::from_rotation_z(angle as f32)
-  }
-
-  pub fn flip_x(&self) -> bool {
-    self.direction == I8Vec2::NEG_X
+    SpriteTx {
+      rotation: Quat::from_rotation_z(angle),
+      flip: Flip {
+        x: self.direction == I8Vec2::NEG_X,
+        y: false,
+      },
+    }
   }
 }

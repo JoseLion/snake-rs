@@ -84,7 +84,7 @@ fn setup_snake(
   let layout = layout_asset.add(texture_layout);
   let snake = Snake::default();
   let position = snake.position;
-  let rotation = snake.rotation();
+  let sprite_tx = snake.sprite_tx();
 
   commands.entity(grid_id).with_child((
     snake,
@@ -92,9 +92,11 @@ fn setup_snake(
       custom_size: Some(Vec2::splat(grid.cell_size)),
       image,
       texture_atlas: Some(TextureAtlas { layout, index: 0 }),
+      flip_x: sprite_tx.flip.x,
+      flip_y: sprite_tx.flip.y,
       ..Sprite::default()
     },
-    Transform::from_translation(grid.translation_at(&position)).with_rotation(rotation),
+    Transform::from_translation(grid.translation_at(&position)).with_rotation(sprite_tx.rotation),
   ));
 
   Ok(())

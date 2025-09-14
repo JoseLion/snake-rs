@@ -9,7 +9,10 @@ use bevy::{
   transform::components::Transform,
 };
 
-use crate::components::grid::Grid;
+use crate::{
+  components::grid::Grid,
+  helpers::transform::{Flip, SpriteTx},
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SegmentKind {
@@ -50,7 +53,7 @@ impl Segment {
     }
   }
 
-  pub fn rotation(&self, prev_direction: I8Vec2) -> Quat {
+  pub fn sprite_tx(&self, prev_direction: I8Vec2) -> SpriteTx {
     let angle = match self.kind {
       SegmentKind::Corner => match prev_direction {
         I8Vec2::X => 0.0,
@@ -66,15 +69,13 @@ impl Segment {
       },
     };
 
-    Quat::from_rotation_z(angle)
-  }
-
-  pub fn flip_x(&self) -> bool {
-    self.kind != SegmentKind::Corner && self.direction == I8Vec2::NEG_X
-  }
-
-  pub fn flip_y(&self, prev_direction: I8Vec2) -> bool {
-    self.kind == SegmentKind::Corner && prev_direction.perp_dot(self.direction) > 0
+    SpriteTx {
+      rotation: Quat::from_rotation_z(angle),
+      flip: Flip {
+        x: self.kind != SegmentKind::Corner && self.direction == I8Vec2::NEG_X,
+        y: self.kind == SegmentKind::Corner && prev_direction.perp_dot(self.direction) > 0,
+      },
+    }
   }
 }
 
@@ -99,7 +100,7 @@ impl SegmentBundle {
     let texture_layout = TextureAtlasLayout::from_grid(tile_size, 5, 1, padding, None);
     let layout = layout_asset.add(texture_layout);
     let translation = grid.translation_at(&segment.position);
-    let rotation = segment.rotation(prev_direction);
+    let sprite_tx = segment.sprite_tx(prev_direction);
     let index = segment.atlas_index();
 
     SegmentBundle {
@@ -108,9 +109,11 @@ impl SegmentBundle {
         custom_size: Some(Vec2::splat(grid.cell_size)),
         image,
         texture_atlas: Some(TextureAtlas { layout, index }),
+        flip_x: sprite_tx.flip.x,
+        flip_y: sprite_tx.flip.y,
         ..Sprite::default()
       },
-      transform: Transform::from_translation(translation).with_rotation(rotation),
+      transform: Transform::from_translation(translation).with_rotation(sprite_tx.rotation),
     }
   }
 }

@@ -62,11 +62,12 @@ fn move_snake(
 ) {
   let grid = grid_query.into_inner();
   let (mut snake, mut snake_tx, mut snake_sprite) = snake_query.into_inner();
-
   snake.position = grid.warp(snake.position + snake.direction);
+
+  let sprite_tx = snake.sprite_tx();
   snake_tx.translation = grid.translation_at(&snake.position);
-  snake_tx.rotation = snake.rotation();
-  snake_sprite.flip_x = snake.flip_x();
+  snake_tx.rotation = sprite_tx.rotation;
+  snake_sprite.flip_x = sprite_tx.flip.x;
 
   snake.has_food = false;
 }
@@ -102,13 +103,14 @@ fn move_segments(
         _ => acc.kind,
       };
 
+      let sprite_tx = segment.sprite_tx(prev.direction);
       segment_tx.translation = grid.translation_at(&segment.position);
-      segment_tx.rotation = segment.rotation(prev.direction);
+      segment_tx.rotation = sprite_tx.rotation;
 
       if let Some(atlas) = segment_spr.texture_atlas.as_mut() {
         atlas.index = segment.atlas_index();
-        segment_spr.flip_x = segment.flip_x();
-        segment_spr.flip_y = segment.flip_y(prev.direction);
+        segment_spr.flip_x = sprite_tx.flip.x;
+        segment_spr.flip_y = sprite_tx.flip.y;
       }
 
       prev
