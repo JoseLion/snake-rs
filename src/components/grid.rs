@@ -1,7 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bevy::{
-  ecs::{component::Component, error::Result},
+  ecs::component::Component,
   math::{I8Vec2, Vec2, Vec3},
   platform::collections::HashSet,
   sprite::Sprite,
@@ -55,9 +55,11 @@ impl Grid {
   }
 
   pub fn translation_at(&self, cell: &I8Vec2) -> Vec3 {
+    let offset = self.cell_size / 2.0;
+
     Vec3::new(
-      self.cell_size * cell.x as f32,
-      self.cell_size * cell.y as f32,
+      (cell.x as f32 * self.cell_size) + offset,
+      (cell.y as f32 * self.cell_size) - offset,
       0.0,
     )
   }
@@ -77,8 +79,11 @@ impl Grid {
     }
   }
 
-  pub fn random_position(&self, excludes: &HashSet<I8Vec2>) -> Result<I8Vec2> {
-    let now_seed = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+  pub fn random_position(&self, excludes: &HashSet<I8Vec2>) -> I8Vec2 {
+    let now_seed = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap_or(Duration::ZERO)
+      .as_secs();
     let mut rand = StdRand::seed(now_seed);
 
     loop {
@@ -90,7 +95,7 @@ impl Grid {
       );
 
       if self.bounds.contains(&next) && !excludes.contains(&next) {
-        break Ok(next);
+        break next;
       }
     }
   }

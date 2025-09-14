@@ -2,8 +2,8 @@ use bevy::{
   app::{App, Plugin, Update},
   ecs::{
     entity::Entity,
-    event::{EventReader, EventWriter},
-    system::{Query, ResMut, Single},
+    observer::Trigger,
+    system::{Commands, Query, ResMut, Single},
   },
   time::{Fixed, Time},
 };
@@ -18,7 +18,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
   fn build(&self, app: &mut App) {
-    app.add_systems(Update, (eat_food, level_up));
+    app.add_systems(Update, eat_food).add_observer(on_level_up);
   }
 }
 
@@ -28,37 +28,33 @@ fn eat_food(
   mut score: ResMut<Score>,
   mut bonus: ResMut<Bonus>,
   mut level_up: ResMut<LevelUp>,
-  mut event_writer: EventWriter<EatFoodEvent>,
+  mut commands: Commands,
 ) {
   let snake = snake_query.into_inner();
 
   food_query.iter().for_each(|(food_id, food)| {
     if snake.position == food.position {
-      let eat_event = EatFoodEvent::new(food_id, food.variant);
+      let eat_event = EatFoodEvent::new(food.variant);
       let points = food.points();
 
       score.value += points;
       bonus.progress += points;
       level_up.progress += points;
-      event_writer.write(eat_event);
+      commands.trigger_targets(eat_event, food_id);
     }
   });
 }
 
-fn level_up(
+fn on_level_up(
+  _trigger: Trigger<EatFoodEvent>,
   mut time: ResMut<Time<Fixed>>,
   mut level_up: ResMut<LevelUp>,
-  mut event_reader: EventReader<EatFoodEvent>,
 ) {
-  if !event_reader.is_empty() {
-    event_reader.read().for_each(|_| {
-      if level_up.progress >= level_up.threshold {
-        let next_speed = time.timestep().as_secs_f64() * 0.8;
+  if level_up.progress >= level_up.threshold {
+    let next_speed = time.timestep().as_secs_f64() * 0.8;
 
-        time.set_timestep_seconds(next_speed);
-        level_up.progress -= level_up.threshold;
-        level_up.threshold = (level_up.threshold as f32 * 1.25).round() as u32;
-      }
-    });
+    time.set_timestep_seconds(next_speed);
+    level_up.progress -= level_up.threshold;
+    level_up.threshold = (level_up.threshold as f32 * 1.25).round() as u32;
   }
 }

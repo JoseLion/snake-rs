@@ -1,12 +1,13 @@
 use bevy::{
   app::{App, FixedUpdate, Plugin, Update},
-  asset::AssetServer,
+  asset::{AssetServer, Assets},
   ecs::{
     entity::Entity,
-    event::EventReader,
+    observer::Trigger,
     query::{Changed, Without},
-    system::{Commands, Query, Res, Single},
+    system::{Commands, Query, Res, ResMut, Single},
   },
+  image::TextureAtlasLayout,
   input::{ButtonInput, keyboard::KeyCode},
   math::{I8Vec2, Vec2},
   sprite::Sprite,
@@ -16,9 +17,9 @@ use bevy::{
 
 use crate::{
   components::{
-    food::FoodVariant,
+    food::{Food, FoodVariant},
     grid::Grid,
-    segment::{Segment, SegmentBundle},
+    segment::{Segment, SegmentBundle, SegmentKind},
     snake::Snake,
   },
   events::game_events::EatFoodEvent,
@@ -29,8 +30,9 @@ pub struct SnakePlugin;
 impl Plugin for SnakePlugin {
   fn build(&self, app: &mut App) {
     app
-      .add_systems(Update, (resize_snake, update_snake, grow_on_eat))
+      .add_systems(Update, (resize_snake, update_snake, open_mouth))
       .add_systems(FixedUpdate, (move_snake, move_segments))
+      .add_observer(on_eat_food)
       .insert_resource(Time::<Fixed>::from_seconds(0.25));
   }
 }
@@ -54,32 +56,65 @@ fn resize_snake(
     });
 }
 
-fn move_snake(grid_query: Single<&Grid>, snake_query: Single<(&mut Snake, &mut Transform)>) {
+fn move_snake(
+  grid_query: Single<&Grid>,
+  snake_query: Single<(&mut Snake, &mut Transform, &mut Sprite)>,
+) {
   let grid = grid_query.into_inner();
-  let (mut snake, mut snake_tx) = snake_query.into_inner();
-
+  let (mut snake, mut snake_tx, mut snake_sprite) = snake_query.into_inner();
   snake.position = grid.warp(snake.position + snake.direction);
+
+  let sprite_tx = snake.sprite_tx();
   snake_tx.translation = grid.translation_at(&snake.position);
+  snake_tx.rotation = sprite_tx.rotation;
+  snake_sprite.flip_x = sprite_tx.flip.x;
+
+  snake.has_food = false;
 }
 
 fn move_segments(
   grid_query: Single<&Grid>,
-  snake_query: Single<&Snake, Changed<Snake>>,
-  mut segment_query: Query<(&mut Segment, &mut Transform)>,
+  snake_query: Single<&mut Snake, Changed<Snake>>,
+  mut segment_query: Query<(&mut Segment, &mut Transform, &mut Sprite)>,
 ) {
   let grid = grid_query.into_inner();
   let snake = snake_query.into_inner();
+  let segment_len = segment_query.iter().len();
+  let head_segment = Segment {
+    direction: snake.direction,
+    kind: SegmentKind::Body,
+    position: snake.position,
+    has_food: snake.has_food,
+  };
 
-  segment_query.iter_mut().fold(
-    snake.position,
-    |next_position, (mut segment, mut segment_tx)| {
-      let current_position = segment.position;
-      segment.position = next_position;
+  segment_query
+    .iter_mut()
+    .enumerate()
+    .fold(head_segment, |acc, (i, current)| {
+      let (mut segment, mut segment_tx, mut segment_spr) = current;
+      let prev = segment.clone();
+
+      segment.position = acc.position;
+      segment.direction = acc.direction;
+      segment.has_food = acc.has_food;
+      segment.kind = match i {
+        idx if idx == segment_len - 1 => SegmentKind::Tail,
+        _ if segment.direction != prev.direction => SegmentKind::Corner,
+        _ => acc.kind,
+      };
+
+      let sprite_tx = segment.sprite_tx(prev.direction);
       segment_tx.translation = grid.translation_at(&segment.position);
+      segment_tx.rotation = sprite_tx.rotation;
 
-      current_position
-    },
-  );
+      if let Some(atlas) = segment_spr.texture_atlas.as_mut() {
+        atlas.index = segment.atlas_index();
+        segment_spr.flip_x = sprite_tx.flip.x;
+        segment_spr.flip_y = sprite_tx.flip.y;
+      }
+
+      prev
+    });
 }
 
 fn update_snake(
@@ -111,25 +146,56 @@ fn update_snake(
   }
 }
 
-fn grow_on_eat(
+#[allow(clippy::needless_pass_by_value)]
+fn on_eat_food(
+  trigger: Trigger<EatFoodEvent>,
   grid_query: Single<(Entity, &Grid)>,
   segment_query: Query<&Segment>,
   assets_res: Res<AssetServer>,
-  mut event_reader: EventReader<EatFoodEvent>,
+  mut snake: Single<&mut Snake>,
+  mut layout_asset: ResMut<Assets<TextureAtlasLayout>>,
   mut commands: Commands,
 ) {
-  if !event_reader.is_empty() {
-    let (grid_id, grid) = grid_query.into_inner();
-    let assets = assets_res.into_inner();
+  let (grid_id, grid) = grid_query.into_inner();
+  let assets = assets_res.into_inner();
+  let should_grow = trigger.event().variant == FoodVariant::Normal;
 
-    event_reader.read().for_each(|eat_event| {
-      let should_grow = eat_event.variant == FoodVariant::Normal;
+  snake.has_food = true;
 
-      if should_grow && let Some(last) = segment_query.iter().last() {
-        commands
-          .entity(grid_id)
-          .with_child(SegmentBundle::from(grid, &last.position, assets));
-      }
-    });
+  if should_grow && let Some(last) = segment_query.iter().last() {
+    let segment = Segment {
+      direction: last.direction,
+      kind: SegmentKind::Tail,
+      position: last.position,
+      has_food: false,
+    };
+
+    commands.entity(grid_id).with_child(SegmentBundle::new(
+      segment,
+      grid,
+      assets,
+      &mut layout_asset,
+      last.direction,
+    ));
+  }
+}
+
+fn open_mouth(
+  grid_query: Single<&Grid>,
+  snake_query: Single<(&Snake, &mut Sprite)>,
+  food_query: Query<&Food>,
+) {
+  let grid = grid_query.into_inner();
+  let (snake, mut snake_sprite) = snake_query.into_inner();
+  let next_position = grid.warp(snake.position + snake.direction);
+  let should_open = food_query
+    .iter()
+    .any(|food| next_position == food.position || snake.has_food);
+
+  if let Some(atlas) = snake_sprite.texture_atlas.as_mut() {
+    atlas.index = match should_open {
+      true => Snake::OPEN,
+      false => Snake::IDLE,
+    };
   }
 }

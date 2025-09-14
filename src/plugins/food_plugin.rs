@@ -5,8 +5,7 @@ use bevy::{
   asset::AssetServer,
   ecs::{
     entity::Entity,
-    error::Result,
-    event::EventReader,
+    observer::Trigger,
     query::Changed,
     system::{Commands, Query, Res, ResMut, Single},
   },
@@ -32,7 +31,10 @@ pub struct FoodPlugin;
 
 impl Plugin for FoodPlugin {
   fn build(&self, app: &mut App) {
-    app.add_systems(Update, (resize, respawn, spawn_bonus, exhaust_bonus));
+    app
+      .add_systems(Update, (resize, exhaust_bonus))
+      .add_observer(on_respawn)
+      .add_observer(on_spawn_bonus);
   }
 }
 
@@ -50,42 +52,46 @@ fn resize(
     });
 }
 
-fn respawn(
+#[allow(clippy::needless_pass_by_value)]
+fn on_respawn(
+  trigger: Trigger<EatFoodEvent>,
   grid_query: Single<&Grid>,
   snake_query: Single<&Snake>,
   segment_query: Query<&Segment>,
-  mut event_reader: EventReader<EatFoodEvent>,
   mut food_query: Query<(&mut Food, &mut Transform)>,
   mut bonus: ResMut<Bonus>,
   mut commands: Commands,
-) -> Result {
+) {
   let grid = grid_query.into_inner();
   let snake = snake_query.into_inner();
+  let food_positions = food_query
+    .iter()
+    .map(|(f, _)| f.position)
+    .collect::<HashSet<_>>();
 
-  for eat_event in event_reader.read() {
-    let (mut food, mut food_tx) = food_query.get_mut(eat_event.id)?;
-
+  if let Ok((mut food, mut food_tx)) = food_query.get_mut(trigger.target()) {
     match food.variant {
       FoodVariant::Normal => {
         let excludes = once(snake.position)
           .chain(segment_query.iter().map(|s| s.position))
+          .chain(food_positions)
           .collect::<HashSet<_>>();
-        let next_position = grid.random_position(&excludes)?;
+        let next_position = grid.random_position(&excludes);
 
         food.position = next_position;
         food_tx.translation = grid.translation_at(&food.position);
       }
       FoodVariant::Special => {
         bonus.deactivate();
-        commands.entity(eat_event.id).despawn();
+        commands.entity(trigger.target()).despawn();
       }
     }
   }
-
-  Ok(())
 }
 
-fn spawn_bonus(
+#[allow(clippy::too_many_arguments)]
+fn on_spawn_bonus(
+  _trigger: Trigger<EatFoodEvent>,
   grid_query: Single<(Entity, &Grid)>,
   snake_query: Single<&Snake>,
   segment_query: Query<&Segment>,
@@ -93,7 +99,7 @@ fn spawn_bonus(
   assets_res: Res<AssetServer>,
   mut bonus: ResMut<Bonus>,
   mut commands: Commands,
-) -> Result {
+) {
   if bonus.is_ready() {
     let assets = assets_res.into_inner();
     let (grid_id, grid) = grid_query.into_inner();
@@ -102,7 +108,7 @@ fn spawn_bonus(
       .chain(segment_query.iter().map(|s| s.position))
       .chain(food_query.iter().map(|f| f.position))
       .collect::<HashSet<_>>();
-    let position = grid.random_position(&excludes)?;
+    let position = grid.random_position(&excludes);
 
     bonus.activate();
     commands.entity(grid_id).with_child(FoodBundle::from(
@@ -112,8 +118,6 @@ fn spawn_bonus(
       assets,
     ));
   }
-
-  Ok(())
 }
 
 fn exhaust_bonus(
