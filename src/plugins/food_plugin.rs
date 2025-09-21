@@ -7,11 +7,13 @@ use bevy::{
     entity::Entity,
     observer::Trigger,
     query::Changed,
+    schedule::{IntoScheduleConfigs, common_conditions::not},
     system::{Commands, Query, Res, ResMut, Single},
   },
   math::Vec2,
   platform::collections::HashSet,
   sprite::Sprite,
+  state::condition::in_state,
   time::Time,
   transform::components::Transform,
 };
@@ -25,6 +27,7 @@ use crate::{
   },
   events::game_events::EatFoodEvent,
   resources::bonus::Bonus,
+  states::game_state::GameState,
 };
 
 pub struct FoodPlugin;
@@ -32,7 +35,8 @@ pub struct FoodPlugin;
 impl Plugin for FoodPlugin {
   fn build(&self, app: &mut App) {
     app
-      .add_systems(Update, (resize, exhaust_bonus))
+      .add_systems(Update, resize.run_if(not(in_state(GameState::MainMenu))))
+      .add_systems(Update, exhaust_bonus.run_if(in_state(GameState::InGame)))
       .add_observer(on_respawn)
       .add_observer(on_spawn_bonus);
   }

@@ -5,12 +5,14 @@ use bevy::{
     entity::Entity,
     observer::Trigger,
     query::{Changed, Without},
+    schedule::{IntoScheduleConfigs, common_conditions::not},
     system::{Commands, Query, Res, ResMut, Single},
   },
   image::TextureAtlasLayout,
   input::{ButtonInput, keyboard::KeyCode},
   math::{I8Vec2, Vec2},
   sprite::Sprite,
+  state::condition::in_state,
   time::{Fixed, Time},
   transform::components::Transform,
 };
@@ -23,6 +25,8 @@ use crate::{
     snake::Snake,
   },
   events::game_events::EatFoodEvent,
+  resources::level_up::LevelUp,
+  states::game_state::GameState,
 };
 
 pub struct SnakePlugin;
@@ -30,14 +34,21 @@ pub struct SnakePlugin;
 impl Plugin for SnakePlugin {
   fn build(&self, app: &mut App) {
     app
-      .add_systems(Update, (resize_snake, update_snake, open_mouth))
-      .add_systems(FixedUpdate, (move_snake, move_segments))
-      .add_observer(on_eat_food)
-      .insert_resource(Time::<Fixed>::from_seconds(0.25));
+      .insert_resource(Time::<Fixed>::from_seconds(LevelUp::INIT_SPEED))
+      .add_systems(Update, resize.run_if(not(in_state(GameState::MainMenu))))
+      .add_systems(
+        Update,
+        (update_direction, open_mouth).run_if(in_state(GameState::InGame)),
+      )
+      .add_systems(
+        FixedUpdate,
+        (move_snake, move_segments).distributive_run_if(in_state(GameState::InGame)),
+      )
+      .add_observer(on_eat_food);
   }
 }
 
-fn resize_snake(
+fn resize(
   grid_query: Single<&Grid, Changed<Grid>>,
   snake_query: Single<(&Snake, &mut Sprite, &mut Transform), Without<Segment>>,
   mut segment_query: Query<(&Segment, &mut Sprite, &mut Transform), Without<Snake>>,
@@ -117,7 +128,7 @@ fn move_segments(
     });
 }
 
-fn update_snake(
+fn update_direction(
   keyboard: Res<ButtonInput<KeyCode>>,
   grid_query: Single<&Grid>,
   segment_query: Query<&Segment>,

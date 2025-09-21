@@ -4,3 +4,9 @@ use bevy::ecs::resource::Resource;
 pub struct Score {
   pub value: u32,
 }
+
+impl Score {
+  pub fn reset(&mut self) {
+    *self = Score::default();
+  }
+}
