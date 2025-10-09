@@ -15,7 +15,10 @@ use bevy::{
   math::{I8Vec2, UVec2, Vec2},
   platform::collections::HashSet,
   sprite::Sprite,
+  state::state::{OnEnter, OnTransition},
+  text::{FontSmoothing, JustifyText, LineBreak, TextColor, TextFont, TextLayout},
   transform::components::Transform,
+  ui::widget::Text,
   window::{PrimaryWindow, Window},
 };
 
@@ -25,9 +28,14 @@ use crate::{
     grid::Grid,
     segment::{Segment, SegmentBundle, SegmentKind},
     snake::Snake,
+    ui::{
+      menu_button::{BtnBundle, BtnTextBundle},
+      overlay::OverlayBundle,
+    },
   },
   helpers::theme::Theme,
-  resources::{bonus::Bonus, level_up::LevelUp, score::Score},
+  resources::{bonus::Bonus, level_up::LevelUp, menu::Menu, score::Score},
+  states::game_state::GameState,
 };
 
 pub struct SetupPlugin;
@@ -38,21 +46,71 @@ impl Plugin for SetupPlugin {
       .init_resource::<Score>()
       .init_resource::<LevelUp>()
       .init_resource::<Bonus>()
+      .add_systems(Startup, setup_camera)
       .add_systems(
-        Startup,
-        (
-          setup_camera,
-          setup_grid,
-          (setup_snake, setup_segments),
-          setup_food,
-        )
-          .chain(),
+        OnEnter(GameState::MainMenu),
+        (setup_main_menu, global_font).chain(),
+      )
+      .add_systems(
+        OnTransition {
+          exited: GameState::MainMenu,
+          entered: GameState::InGame,
+        },
+        (setup_grid, (setup_snake, setup_segments), setup_food).chain(),
+      )
+      .add_systems(
+        OnEnter(GameState::Paused),
+        (setup_pause_menu, global_font).chain(),
+      )
+      .add_systems(
+        OnEnter(GameState::GameOver),
+        (setup_gameover, global_font).chain(),
       );
   }
 }
 
 fn setup_camera(mut commands: Commands) {
   commands.spawn(Camera2d);
+}
+
+fn setup_main_menu(mut commands: Commands) {
+  let mut overlay = commands.spawn(OverlayBundle::new(None));
+  let menu = Menu::main_menu_from(overlay.id());
+
+  overlay.with_children(|container| {
+    menu.actions().iter().for_each(|action| {
+      container
+        .spawn(BtnBundle::new(*action))
+        .with_child(BtnTextBundle::new(action.label()));
+    });
+  });
+
+  commands.insert_resource(menu);
+}
+
+fn setup_pause_menu(mut commands: Commands) {
+  let mut overlay = commands.spawn(OverlayBundle::new(Theme::OVERLAY));
+  let menu = Menu::pause_menu_from(overlay.id());
+
+  overlay.with_children(|container| {
+    menu.actions().iter().for_each(|action| {
+      container
+        .spawn(BtnBundle::new(*action))
+        .with_child(BtnTextBundle::new(action.label()));
+    });
+  });
+
+  commands.insert_resource(menu);
+}
+
+fn global_font(assets_res: Res<AssetServer>, mut text_query: Query<&mut TextFont>) {
+  let assets = assets_res.into_inner();
+  let font = assets.load("fonts/PixelifySans-Variable.ttf");
+
+  text_query.iter_mut().for_each(|mut text| {
+    text.font = font.clone();
+    text.font_smoothing = FontSmoothing::None;
+  });
 }
 
 fn setup_grid(mut commands: Commands, window_query: Query<&Window, With<PrimaryWindow>>) -> Result {
@@ -137,21 +195,21 @@ fn setup_segments(
 }
 
 fn setup_food(
-  grid_query: Query<&Grid>,
+  grid_query: Query<(Entity, &Grid)>,
   snake_query: Query<&Snake>,
   segment_query: Query<&Segment>,
   assets_res: Res<AssetServer>,
   mut commands: Commands,
 ) -> Result {
   let assets = assets_res.into_inner();
-  let grid = grid_query.single()?;
+  let (grid_id, grid) = grid_query.single()?;
   let snake = snake_query.single()?;
   let excludes = once(snake.position)
     .chain(segment_query.iter().map(|s| s.position))
     .collect::<HashSet<_>>();
   let position = grid.random_position(&excludes);
 
-  commands.spawn(FoodBundle::from(
+  commands.entity(grid_id).with_child(FoodBundle::from(
     FoodVariant::Normal,
     position,
     grid,
@@ -159,4 +217,36 @@ fn setup_food(
   ));
 
   Ok(())
+}
+
+fn setup_gameover(mut commands: Commands) {
+  commands
+    .spawn(OverlayBundle::new(Theme::OVERLAY))
+    .with_children(|overlay| {
+      overlay.spawn((
+        Text::new("Game Over"),
+        TextColor::WHITE,
+        TextFont {
+          font_size: 40.0,
+          ..TextFont::default()
+        },
+        TextLayout {
+          justify: JustifyText::Center,
+          linebreak: LineBreak::NoWrap,
+        },
+      ));
+
+      overlay.spawn((
+        Text::new("Press \"Enter\" to continue"),
+        TextColor::WHITE,
+        TextFont {
+          font_size: 25.0,
+          ..TextFont::default()
+        },
+        TextLayout {
+          justify: JustifyText::Center,
+          linebreak: LineBreak::NoWrap,
+        },
+      ));
+    });
 }

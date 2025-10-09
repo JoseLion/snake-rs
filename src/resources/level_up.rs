@@ -14,3 +14,11 @@ impl Default for LevelUp {
     }
   }
 }
+
+impl LevelUp {
+  pub const INIT_SPEED: f64 = 0.25;
+
+  pub fn reset(&mut self) {
+    *self = LevelUp::default();
+  }
+}
