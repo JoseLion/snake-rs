@@ -16,7 +16,8 @@ use crate::{
   events::game_events::EatFoodEvent,
   plugins::{
     food_plugin::FoodPlugin, game_plugin::GamePlugin, grid_plugin::GridPlugin,
-    menu_plugin::MenuPlugin, setup_plugin::SetupPlugin, snake_plugin::SnakePlugin,
+    hud_plugin::HudPlugin, menu_plugin::MenuPlugin, setup_plugin::SetupPlugin,
+    snake_plugin::SnakePlugin,
   },
   states::game_state::GameState,
 };
@@ -30,6 +31,7 @@ fn main() {
     .add_plugins(SnakePlugin)
     .add_plugins(FoodPlugin)
     .add_plugins(GamePlugin)
+    .add_plugins(HudPlugin)
     .insert_state(GameState::MainMenu)
     .add_event::<EatFoodEvent>()
     .run();

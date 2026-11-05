@@ -1,14 +1,18 @@
 use bevy::{
+  asset::AssetServer,
   color::Color,
   ecs::{bundle::Bundle, component::Component},
-  text::{JustifyText, TextColor, TextLayout},
+  text::{FontSmoothing, JustifyText, TextColor, TextFont, TextLayout},
   ui::{
     BackgroundColor, BorderColor, Node, UiRect, Val,
     widget::{Button, Text},
   },
 };
 
-use crate::{helpers::theme::Theme, resources::menu::Action};
+use crate::{
+  helpers::theme::{FontFace, FontSize, Theme},
+  resources::menu::Action,
+};
 
 #[derive(Component)]
 #[require(Button)]
@@ -51,18 +55,24 @@ impl BtnBundle {
 pub struct BtnTextBundle {
   node: Node,
   text: Text,
+  text_font: TextFont,
   text_color: TextColor,
   text_layout: TextLayout,
 }
 
 impl BtnTextBundle {
-  pub fn new(text: impl Into<String>) -> Self {
+  pub fn new(text: impl Into<String>, assets: &AssetServer) -> Self {
+    let font = assets.load(FontFace::PIXELIFY_SANS);
+
     BtnTextBundle {
       node: Node {
         width: Val::Percent(100.0),
         ..Node::default()
       },
       text: Text::new(text),
+      text_font: TextFont::from_font(font)
+        .with_font_smoothing(FontSmoothing::None)
+        .with_font_size(FontSize::BTN),
       text_color: TextColor::WHITE,
       text_layout: TextLayout {
         justify: JustifyText::Center,

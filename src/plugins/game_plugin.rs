@@ -4,7 +4,7 @@ use bevy::{
     entity::Entity,
     observer::Trigger,
     query::With,
-    schedule::IntoScheduleConfigs,
+    schedule::{IntoScheduleConfigs, SystemSet},
     system::{Commands, Query, Res, ResMut, Single},
   },
   input::{ButtonInput, keyboard::KeyCode},
@@ -16,20 +16,32 @@ use bevy::{
 };
 
 use crate::{
-  components::{food::Food, grid::Grid, segment::Segment, snake::Snake, ui::overlay::Overlay},
+  components::{
+    food::Food,
+    grid::Grid,
+    segment::Segment,
+    snake::Snake,
+    ui::{hud::Hud, overlay::Overlay},
+  },
   events::game_events::EatFoodEvent,
   resources::{bonus::Bonus, level_up::LevelUp, score::Score},
   states::game_state::GameState,
 };
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct InGameSystemSet;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
   fn build(&self, app: &mut App) {
     app
+      .configure_sets(Update, InGameSystemSet)
       .add_systems(
         Update,
-        (eat_food, pause, gameover).run_if(in_state(GameState::InGame)),
+        (eat_food, pause, gameover)
+          .run_if(in_state(GameState::InGame))
+          .in_set(InGameSystemSet),
       )
       .add_systems(Update, unpause.run_if(in_state(GameState::Paused)))
       .add_systems(Update, restart.run_if(in_state(GameState::GameOver)))
@@ -108,9 +120,11 @@ fn restart(keyboard: Res<ButtonInput<KeyCode>>, mut next_state: ResMut<NextState
   }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn despawn_gameover(
   overlay: Single<Entity, With<Overlay>>,
   grid: Single<Entity, With<Grid>>,
+  hud: Single<Entity, With<Hud>>,
   mut time: ResMut<Time<Fixed>>,
   mut bonus: ResMut<Bonus>,
   mut level_up: ResMut<LevelUp>,
@@ -119,9 +133,11 @@ fn despawn_gameover(
 ) {
   let overlay_id = overlay.into_inner();
   let grid_id = grid.into_inner();
+  let hud_id = hud.into_inner();
 
   commands.entity(overlay_id).despawn();
   commands.entity(grid_id).despawn();
+  commands.entity(hud_id).despawn();
   time.set_timestep_seconds(LevelUp::INIT_SPEED);
   bonus.deactivate();
   level_up.reset();

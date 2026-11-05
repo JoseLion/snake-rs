@@ -14,11 +14,12 @@ use bevy::{
   image::{TextureAtlas, TextureAtlasLayout},
   math::{I8Vec2, UVec2, Vec2},
   platform::collections::HashSet,
+  render::view::Visibility,
   sprite::Sprite,
   state::state::{OnEnter, OnTransition},
   text::{FontSmoothing, JustifyText, LineBreak, TextColor, TextFont, TextLayout},
   transform::components::Transform,
-  ui::widget::Text,
+  ui::{AlignItems, FlexDirection, Node, UiRect, Val, ZIndex, widget::Text},
   window::{PrimaryWindow, Window},
 };
 
@@ -29,11 +30,12 @@ use crate::{
     segment::{Segment, SegmentBundle, SegmentKind},
     snake::Snake,
     ui::{
+      hud::{Hud, LeftPane, RightPane, ScoreText, SpeedText},
       menu_button::{BtnBundle, BtnTextBundle},
       overlay::OverlayBundle,
     },
   },
-  helpers::theme::Theme,
+  helpers::theme::{FontFace, FontSize, Theme},
   resources::{bonus::Bonus, level_up::LevelUp, menu::Menu, score::Score},
   states::game_state::GameState,
 };
@@ -47,25 +49,22 @@ impl Plugin for SetupPlugin {
       .init_resource::<LevelUp>()
       .init_resource::<Bonus>()
       .add_systems(Startup, setup_camera)
-      .add_systems(
-        OnEnter(GameState::MainMenu),
-        (setup_main_menu, global_font).chain(),
-      )
+      .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
       .add_systems(
         OnTransition {
           exited: GameState::MainMenu,
           entered: GameState::InGame,
         },
-        (setup_grid, (setup_snake, setup_segments), setup_food).chain(),
+        (
+          setup_grid,
+          (setup_snake, setup_segments),
+          setup_food,
+          setup_hud,
+        )
+          .chain(),
       )
-      .add_systems(
-        OnEnter(GameState::Paused),
-        (setup_pause_menu, global_font).chain(),
-      )
-      .add_systems(
-        OnEnter(GameState::GameOver),
-        (setup_gameover, global_font).chain(),
-      );
+      .add_systems(OnEnter(GameState::Paused), setup_pause_menu)
+      .add_systems(OnEnter(GameState::GameOver), setup_gameover);
   }
 }
 
@@ -73,53 +72,45 @@ fn setup_camera(mut commands: Commands) {
   commands.spawn(Camera2d);
 }
 
-fn setup_main_menu(mut commands: Commands) {
+fn setup_main_menu(assets_res: Res<AssetServer>, mut commands: Commands) {
   let mut overlay = commands.spawn(OverlayBundle::new(None));
   let menu = Menu::main_menu_from(overlay.id());
+  let assets = assets_res.into_inner();
 
   overlay.with_children(|container| {
     menu.actions().iter().for_each(|action| {
       container
         .spawn(BtnBundle::new(*action))
-        .with_child(BtnTextBundle::new(action.label()));
+        .with_child(BtnTextBundle::new(action.label(), assets));
     });
   });
 
   commands.insert_resource(menu);
 }
 
-fn setup_pause_menu(mut commands: Commands) {
+fn setup_pause_menu(assets_res: Res<AssetServer>, mut commands: Commands) {
   let mut overlay = commands.spawn(OverlayBundle::new(Theme::OVERLAY));
   let menu = Menu::pause_menu_from(overlay.id());
+  let assets = assets_res.into_inner();
 
   overlay.with_children(|container| {
     menu.actions().iter().for_each(|action| {
       container
         .spawn(BtnBundle::new(*action))
-        .with_child(BtnTextBundle::new(action.label()));
+        .with_child(BtnTextBundle::new(action.label(), assets));
     });
   });
 
   commands.insert_resource(menu);
 }
 
-fn global_font(assets_res: Res<AssetServer>, mut text_query: Query<&mut TextFont>) {
-  let assets = assets_res.into_inner();
-  let font = assets.load("fonts/PixelifySans-Variable.ttf");
-
-  text_query.iter_mut().for_each(|mut text| {
-    text.font = font.clone();
-    text.font_smoothing = FontSmoothing::None;
-  });
-}
-
-fn setup_grid(mut commands: Commands, window_query: Query<&Window, With<PrimaryWindow>>) -> Result {
+fn setup_grid(window_query: Query<&Window, With<PrimaryWindow>>, mut commands: Commands) -> Result {
   let window = window_query.single()?;
   let grid = Grid::from(window);
   let sprite = Sprite {
     color: Theme::WORLD_COLOR,
     custom_size: Some(grid.size),
-    ..Default::default()
+    ..Sprite::default()
   };
 
   commands.spawn((grid, sprite));
@@ -219,34 +210,121 @@ fn setup_food(
   Ok(())
 }
 
-fn setup_gameover(mut commands: Commands) {
+fn setup_gameover(assets: Res<AssetServer>, mut commands: Commands) {
+  let font = assets.into_inner().load(FontFace::PIXELIFY_SANS);
+
   commands
     .spawn(OverlayBundle::new(Theme::OVERLAY))
     .with_children(|overlay| {
       overlay.spawn((
         Text::new("Game Over"),
         TextColor::WHITE,
-        TextFont {
-          font_size: 40.0,
-          ..TextFont::default()
-        },
-        TextLayout {
-          justify: JustifyText::Center,
-          linebreak: LineBreak::NoWrap,
-        },
+        TextFont::from_font(font.clone())
+          .with_font_smoothing(FontSmoothing::None)
+          .with_font_size(40.0),
+        TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
       ));
 
       overlay.spawn((
         Text::new("Press \"Enter\" to continue"),
         TextColor::WHITE,
-        TextFont {
-          font_size: 25.0,
-          ..TextFont::default()
-        },
-        TextLayout {
-          justify: JustifyText::Center,
-          linebreak: LineBreak::NoWrap,
-        },
+        TextFont::from_font(font.clone())
+          .with_font_smoothing(FontSmoothing::None)
+          .with_font_size(25.0),
+        TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
       ));
     });
+}
+
+fn setup_hud(assets: Res<AssetServer>, mut commands: Commands) -> Result {
+  let font = assets.into_inner().load(FontFace::PRESS_START_2P);
+
+  commands
+    .spawn((
+      Hud,
+      Node {
+        height: Val::Vh(100.0),
+        width: Val::Vw(100.0),
+        ..Node::default()
+      },
+      ZIndex(-10),
+    ))
+    .with_children(|parent| {
+      parent
+        .spawn((
+          LeftPane,
+          Node {
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            height: Val::Vh(100.0),
+            align_items: AlignItems::Center,
+            padding: UiRect::all(Val::Percent(1.0)),
+            ..Node::default()
+          },
+        ))
+        .with_children(|pane| {
+          pane.spawn((
+            Text::new("Score"),
+            TextColor::WHITE,
+            TextFont::from_font(font.clone())
+              .with_font_smoothing(FontSmoothing::None)
+              .with_font_size(FontSize::H1),
+            TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
+          ));
+
+          pane.spawn((
+            ScoreText,
+            Text::new("0"),
+            TextColor::WHITE,
+            TextFont::from_font(font.clone())
+              .with_font_smoothing(FontSmoothing::None)
+              .with_font_size(FontSize::H2),
+            TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
+          ));
+        });
+
+      parent.spawn((
+        Node {
+          height: Val::Vh(100.0),
+          width: Val::Vh(100.0),
+          ..Node::default()
+        },
+        Visibility::Hidden,
+      ));
+
+      parent
+        .spawn((
+          RightPane,
+          Node {
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            height: Val::Vh(100.0),
+            align_items: AlignItems::Center,
+            padding: UiRect::all(Val::Percent(1.0)),
+            ..Node::default()
+          },
+        ))
+        .with_children(|pane| {
+          pane.spawn((
+            Text::new("Speed"),
+            TextColor::WHITE,
+            TextFont::from_font(font.clone())
+              .with_font_smoothing(FontSmoothing::None)
+              .with_font_size(FontSize::H1),
+            TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
+          ));
+
+          pane.spawn((
+            SpeedText,
+            Text::new("x1.00"),
+            TextColor::WHITE,
+            TextFont::from_font(font.clone())
+              .with_font_smoothing(FontSmoothing::None)
+              .with_font_size(FontSize::H2),
+            TextLayout::new(JustifyText::Center, LineBreak::NoWrap),
+          ));
+        });
+    });
+
+  Ok(())
 }
